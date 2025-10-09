@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #define _USE_MATH_DEFINES
 #include <iostream>
 #include <map>
@@ -10,22 +9,16 @@
 #include <cmath>
 #include <cstdio>
 #include <algorithm>
+#include <cstring>
+#include <locale.h>
 
-// OpenGL и GLUT заголовки
-// GLUT используется для создания окна и обработки событий (клавиатура, мышь и т.д.)
-// GL и GLU — стандартные библиотеки для рендеринга 3D-графики
-#include <E:\git_work\Computer_Graphics_Course\lab3\GL\glut.h>
+#include <GL/glut.h>
 #include <GL/glu.h>
 #include <GL/gl.h>
 
 // ===================================================================================
 // КОНФИГУРАЦИЯ ПРИЛОЖЕНИЯ
 // ===================================================================================
-// Структура AppConfig хранит пути к файлам с данными:
-// - section.txt: 2D-сечение (профиль) объекта в виде пар (x, y)
-// - trajectory.txt: 3D-траектория — точки (x, y, z), по которым "тянется" профиль
-// - scaling.txt: коэффициенты масштабирования для каждой точки траектории
-// - texturePaths: пути к BMP-текстурам для наложения на модель
 struct AppConfig {
     std::string sectionPath = "files/section.txt";
     std::string trajectoryPath = "files/trajectory.txt";
@@ -33,7 +26,6 @@ struct AppConfig {
     std::vector<std::string> texturePaths = { "files/1.bmp", "files/2.bmp" };
 };
 
-// Преобразование градусов в радианы (для тригонометрических функций OpenGL)
 double degToRad(double deg) {
     return deg * M_PI / 180.0;
 }
@@ -42,19 +34,15 @@ double degToRad(double deg) {
 // МАТЕМАТИЧЕСКИЕ СТРУКТУРЫ И ФУНКЦИИ
 // ===================================================================================
 
-// Трёхмерный вектор с операторами сравнения и равенства
-// Используется для представления точек и нормалей
 struct Vector3 {
     double x, y, z;
 
-    // Оператор < необходим для использования Vector3 в std::map
     bool operator<(const Vector3& o) const {
         if (x != o.x) return x < o.x;
         if (y != o.y) return y < o.y;
         return z < o.z;
     }
 
-    // Оператор == с учётом погрешности (epsilon) для сравнения вещественных чисел
     bool operator==(const Vector3& o) const {
         const double epsilon = 1e-9;
         return std::abs(x - o.x) < epsilon &&
@@ -63,17 +51,14 @@ struct Vector3 {
     }
 };
 
-// Хеш-функция для Vector3 — необходима для использования в unordered_map
 struct Vector3Hash {
     std::size_t operator()(const Vector3& v) const {
-        // Простой, но рабочий способ комбинирования хешей
         return std::hash<double>()(v.x) ^
             (std::hash<double>()(v.y) << 1) ^
             (std::hash<double>()(v.z) << 2);
     }
 };
 
-// Функтор сравнения для unordered_map с учётом погрешности
 struct Vector3Equal {
     bool operator()(const Vector3& a, const Vector3& b) const {
         const double epsilon = 1e-9;
@@ -83,7 +68,6 @@ struct Vector3Equal {
     }
 };
 
-// Грань (треугольник) модели — состоит из трёх вершин
 struct Face {
     Vector3 verts[3];
 };
@@ -91,48 +75,34 @@ struct Face {
 // ===================================================================================
 // УПРАВЛЕНИЕ КАМЕРОЙ
 // ===================================================================================
-// Камера реализована как "орбитальная": вращается вокруг центра сцены (0,0,0)
-// Использует сферические координаты: углы поворота и расстояние до центра
 class CameraController {
 private:
-    // angles.x — азимут (вокруг оси Y), angles.y — угол возвышения (от -89° до +89°),
-    // angles.z — расстояние от камеры до центра сцены
     Vector3 angles = { 45, 45, 10 };
-    double minDistance = 1.0;  // Минимальное расстояние (ограничение приближения)
-    double maxDistance = 100.0; // Максимальное расстояние (ограничение отдаления)
+    double minDistance = 1.0;
+    double maxDistance = 100.0;
 
 public:
-    // Вращение камеры: deltaX — горизонтальное, deltaY — вертикальное
     void rotate(double deltaX, double deltaY) {
         angles.x = fmod(angles.x + deltaX, 360.0);
         if (angles.x < 0) angles.x += 360.0;
-
-        // Ограничение угла возвышения, чтобы избежать "переворота" камеры
         angles.y = std::max(-89.0, std::min(89.0, angles.y + deltaY));
     }
 
-    // Изменение расстояния до центра (зум)
     void zoom(double delta) {
         angles.z = std::max(minDistance, std::min(maxDistance, angles.z + delta));
     }
 
-    // Сброс камеры в начальное положение
     void reset() {
         angles = { 45, 45, 10 };
     }
 
-    // Настройка матрицы вида с помощью gluLookAt
-    // Вычисляет позицию камеры в декартовых координатах из сферических
     void setupView() const {
         double cameraX = angles.z * cos(degToRad(angles.y)) * cos(degToRad(angles.x));
         double cameraY = angles.z * sin(degToRad(angles.y));
         double cameraZ = angles.z * cos(degToRad(angles.y)) * sin(degToRad(angles.x));
-
-        // gluLookAt(позиция_камеры, точка_наблюдения, вектор_вверх)
         gluLookAt(cameraX, cameraY, cameraZ, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
     }
 
-    // Геттер и сеттер для текущих углов камеры
     const Vector3& getAngles() const { return angles; }
     void setAngles(const Vector3& newAngles) { angles = newAngles; }
 };
@@ -140,46 +110,29 @@ public:
 // ===================================================================================
 // ГЕОМЕТРИЯ ОБЪЕКТА
 // ===================================================================================
-// Класс Geometry отвечает за построение 3D-модели из 2D-сечения, траектории и масштабов
 class Geometry {
 public:
-    std::vector<Face> meshFaces; // Список треугольников модели
-    // Карта: вершина -> усреднённая нормаль (для сглаженного освещения)
+    std::vector<Face> meshFaces;
     std::unordered_map<Vector3, Vector3, Vector3Hash, Vector3Equal> vertexNormals;
-    Vector3 center; // Центр масс модели
+    Vector3 center;
 
-    // Вычисление центра модели (среднее арифметическое всех вершин)
     void computeCenter();
-
-    // Вычисление нормалей:
-    // - сначала нормали граней,
-    // - затем усреднение по вершинам для smooth shading
     void computeNormals();
-
-    // Основной метод построения модели:
-    // section — 2D-профиль (x0,y0,x1,y1,...),
-    // trajectory — 3D-точки (x0,y0,z0,x1,y1,z1,...),
-    // scaling — коэффициенты масштаба для каждой точки траектории
     void buildFromData(const std::vector<double>& section,
         const std::vector<double>& trajectory,
         const std::vector<double>& scaling);
 
 private:
-    // Создаёт одно "кольцо" вершин вокруг точки траектории
-    // Сечение центрируется, масштабируется и смещается вдоль траектории
     std::vector<Vector3> createRing(const std::vector<double>& section,
         const std::vector<double>& trajectory,
         const std::vector<double>& scaling,
         int ringIndex);
-
-    // Соединяет соседние кольца треугольниками (триангуляция поверхности)
     void triangulateRings(const std::vector<std::vector<Vector3>>& rings);
 };
 
 // ===================================================================================
 // МЕНЕДЖЕР ФАЙЛОВ
 // ===================================================================================
-// Загружает числовые данные из текстового файла в вектор double
 class FileManager {
 public:
     static bool loadData(const std::string& path, std::vector<double>& out,
@@ -198,9 +151,6 @@ public:
         }
         std::fclose(f);
 
-        // Проверка формата данных:
-        // - "even": чётное число (для 2D-сечения: x,y,x,y,...)
-        // - "triples": кратно трём (для 3D-траектории: x,y,z,x,y,z,...)
         if (expectedFormat == "even" && count % 2 != 0) {
             std::cerr << "Ошибка: " << path << " должен содержать четное число координат" << std::endl;
             return false;
@@ -218,59 +168,51 @@ public:
 // ===================================================================================
 // СЦЕНА
 // ===================================================================================
-// Основной класс сцены: содержит геометрию, текстуры, настройки отображения и камеру
 class Scene {
 public:
-    Geometry geometry;                    // 3D-модель
-    std::vector<unsigned int> textureIDs; // Идентификаторы загруженных текстур OpenGL
-    int textureIndex = -1;                // Индекс текущей текстуры (-1 = без текстуры)
-    bool showWireframe = false;           // Режим каркаса (линии вместо заполненных полигонов)
-    bool showNormals = false;             // Отображение нормалей (векторы из вершин)
-    bool smoothShading = false;           // Сглаженное освещение (Gouraud shading)
-    bool usePerspective = true;           // Перспективная проекция (иначе — ортографическая)
-    unsigned short winWidth = 800, winHeight = 600; // Размер окна
-    CameraController camera;              // Управление камерой
-    AppConfig config;                     // Конфигурация путей к файлам
+    Geometry geometry;
+    std::vector<unsigned int> textureIDs;
+    int textureIndex = -1;
+    bool showWireframe = false;
+    bool showNormals = false;
+    bool smoothShading = false;
+    bool usePerspective = true;
+    unsigned short winWidth = 800, winHeight = 600;
+    CameraController camera;
+    AppConfig config;
+    double heightRange = 30.0; // для текстур
 
-    // Перезагрузка сцены: загрузка данных и перестроение модели
     void reset();
-
-    // Вывод информации о сцене в консоль
     void printSceneInfo() const;
 };
 
-// Глобальный экземпляр сцены — упрощает доступ из callback-функций GLUT
 Scene gScene;
 
 // ===================================================================================
 // ВСПОМОГАТЕЛЬНЫЕ МАТЕМАТИЧЕСКИЕ ФУНКЦИИ
 // ===================================================================================
 
-// Сложение двух векторов
 Vector3 addVec(const Vector3& a, const Vector3& b) {
     return Vector3{ a.x + b.x, a.y + b.y, a.z + b.z };
 }
 
-// Нормализация вектора (приведение к единичной длине)
 Vector3 normalizeVec(const Vector3& a) {
     double len = std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
-    if (len < 1e-8) return Vector3{ 0, 0, 0 }; // Защита от деления на ноль
+    if (len < 1e-8) return Vector3{ 0, 0, 0 };
     return Vector3{ a.x / len, a.y / len, a.z / len };
 }
 
-// Вычисление нормали к треугольнику по трём вершинам (векторное произведение)
 Vector3 calcNormal(const Vector3& v1, const Vector3& v2, const Vector3& v3) {
     double ux = v2.x - v1.x, uy = v2.y - v1.y, uz = v2.z - v1.z;
     double vx = v3.x - v1.x, vy = v3.y - v1.y, vz = v3.z - v1.z;
     Vector3 n{
-        uy * vz - uz * vy, // X компонента
-        uz * vx - ux * vz, // Y компонента
-        ux * vy - uy * vx  // Z компонента
+        uy * vz - uz * vy,
+        uz * vx - ux * vz,
+        ux * vy - uy * vx
     };
     return normalizeVec(n);
 }
 
-// Безопасное получение нормали из карты (с возвратом нулевого вектора при отсутствии)
 Vector3 getNormal(const std::unordered_map<Vector3, Vector3, Vector3Hash, Vector3Equal>& normals,
     const Vector3& key) {
     auto it = normals.find(key);
@@ -301,23 +243,19 @@ void Geometry::computeNormals() {
     vertexNormals.clear();
     std::unordered_map<Vector3, Vector3, Vector3Hash, Vector3Equal> tempNormals;
 
-    // Для каждой грани вычисляем нормаль и добавляем её ко всем трём вершинам
     for (const auto& face : meshFaces) {
         Vector3 n = calcNormal(face.verts[0], face.verts[1], face.verts[2]);
         for (int i = 0; i < 3; ++i) {
             const Vector3& v = face.verts[i];
-            // Если вершина уже есть — суммируем нормали
             tempNormals[v] = addVec(tempNormals[v], n);
         }
     }
 
-    // Нормализуем усреднённые нормали
     for (auto& it : tempNormals) {
         vertexNormals[it.first] = normalizeVec(it.second);
     }
 }
 
-// Создание одного кольца вершин вокруг i-й точки траектории
 std::vector<Vector3> Geometry::createRing(const std::vector<double>& section,
     const std::vector<double>& trajectory,
     const std::vector<double>& scaling,
@@ -326,13 +264,11 @@ std::vector<Vector3> Geometry::createRing(const std::vector<double>& section,
     std::vector<Vector3> ring;
     ring.reserve(profilePoints);
 
-    // Получаем координаты текущей точки траектории и масштаб
     double tx = trajectory[ringIndex * 3 + 0];
     double ty = trajectory[ringIndex * 3 + 1];
     double tz = trajectory[ringIndex * 3 + 2];
     double scale = scaling[ringIndex];
 
-    // Центрируем сечение: вычисляем его центр (чтобы масштабирование было относительно центра)
     double secCx = 0.0, secCy = 0.0;
     for (int k = 0; k < profilePoints; ++k) {
         secCx += section[2 * k];
@@ -341,26 +277,22 @@ std::vector<Vector3> Geometry::createRing(const std::vector<double>& section,
     secCx /= profilePoints;
     secCy /= profilePoints;
 
-    // Для каждой точки сечения:
-    // 1. Смещаем относительно центра сечения
-    // 2. Масштабируем
-    // 3. Возвращаем в исходное положение + смещаем вдоль траектории
     for (int k = 0; k < profilePoints; ++k) {
         double dx = section[2 * k] - secCx;
         double dy = section[2 * k + 1] - secCy;
         double x = dx * scale + secCx + tx;
         double y = dy * scale + secCy + ty;
-        double z = tz; // Z-координата берётся из траектории
+        double z = tz;
         ring.emplace_back(Vector3{ x, y, z });
     }
 
     return ring;
 }
 
-// Триангуляция: соединение соседних колец четырёхугольниками, разбитыми на два треугольника
 void Geometry::triangulateRings(const std::vector<std::vector<Vector3>>& rings) {
     meshFaces.clear();
 
+    // Боковая поверхность
     for (size_t i = 0; i < rings.size() - 1; ++i) {
         const std::vector<Vector3>& ring0 = rings[i];
         const std::vector<Vector3>& ring1 = rings[i + 1];
@@ -368,19 +300,39 @@ void Geometry::triangulateRings(const std::vector<std::vector<Vector3>>& rings) 
 
         for (int j = 0; j < ringSize; ++j) {
             int j1 = (j + 1) % ringSize;
-            // Первый треугольник четырёхугольника
             meshFaces.push_back(Face{ ring0[j], ring1[j], ring1[j1] });
-            // Второй треугольник
             meshFaces.push_back(Face{ ring0[j], ring1[j1], ring0[j1] });
+        }
+    }
+
+    // Торец в начале (обратная нормаль)
+    if (!rings.empty() && !rings[0].empty()) {
+        const auto& first = rings[0];
+        Vector3 center{0,0,0};
+        for (const auto& v : first) { center = addVec(center, v); }
+        center.x /= first.size(); center.y /= first.size(); center.z /= first.size();
+        for (size_t i = 0; i < first.size(); ++i) {
+            size_t i1 = (i + 1) % first.size();
+            meshFaces.push_back(Face{ center, first[i1], first[i] });
+        }
+    }
+
+    // Торец в конце
+    if (rings.size() > 1 && !rings.back().empty()) {
+        const auto& last = rings.back();
+        Vector3 center{0,0,0};
+        for (const auto& v : last) { center = addVec(center, v); }
+        center.x /= last.size(); center.y /= last.size(); center.z /= last.size();
+        for (size_t i = 0; i < last.size(); ++i) {
+            size_t i1 = (i + 1) % last.size();
+            meshFaces.push_back(Face{ center, last[i], last[i1] });
         }
     }
 }
 
-// Основной метод построения модели
 void Geometry::buildFromData(const std::vector<double>& section,
     const std::vector<double>& trajectory,
     const std::vector<double>& scaling) {
-    // Валидация входных данных
     if (section.size() % 2 != 0 || section.size() < 6) {
         throw std::runtime_error("Неверный формат сечения: требуется минимум 3 точки (6 координат)");
     }
@@ -396,7 +348,6 @@ void Geometry::buildFromData(const std::vector<double>& section,
         throw std::runtime_error("Количество точек траектории и коэффициентов масштабирования не совпадает");
     }
 
-    // Построение колец для каждой точки траектории
     std::vector<std::vector<Vector3>> rings;
     rings.reserve(trajectoryPoints);
 
@@ -404,10 +355,7 @@ void Geometry::buildFromData(const std::vector<double>& section,
         rings.push_back(createRing(section, trajectory, scaling, i));
     }
 
-    // Триангуляция поверхности
     triangulateRings(rings);
-
-    // Вычисление центра и нормалей
     computeCenter();
     computeNormals();
 }
@@ -419,15 +367,27 @@ void Geometry::buildFromData(const std::vector<double>& section,
 void Scene::reset() {
     std::vector<double> section, trajectory, scaling;
 
-    // Загрузка данных из файлов
     if (!FileManager::loadData(config.sectionPath, section, "even") ||
         !FileManager::loadData(config.trajectoryPath, trajectory, "triples") ||
         !FileManager::loadData(config.scalingPath, scaling)) {
         throw std::runtime_error("Ошибка загрузки файлов данных");
     }
 
-    // Построение модели
     geometry.buildFromData(section, trajectory, scaling);
+
+    // Вычисление heightRange для текстур
+    if (!geometry.meshFaces.empty()) {
+        double minZ = geometry.meshFaces[0].verts[0].z;
+        double maxZ = minZ;
+        for (const auto& f : geometry.meshFaces) {
+            for (const auto& v : f.verts) {
+                if (v.z < minZ) minZ = v.z;
+                if (v.z > maxZ) maxZ = v.z;
+            }
+        }
+        heightRange = (maxZ - minZ) > 1e-3 ? (maxZ - minZ) : 1.0;
+    }
+
     printSceneInfo();
 }
 
@@ -446,28 +406,21 @@ void Scene::printSceneInfo() const {
 // РАБОТА С ТЕКСТУРАМИ
 // ===================================================================================
 
-// Генерация текстурных координат (u, v) с помощью цилиндрической проекции
-// u — угол вокруг оси Z, v — нормализованная высота по Z
-void applyTextureCoordinates(const Vector3& vertex, const Vector3& center,
-    double heightRange, double angleOffset = 0.0) {
+void applyTextureCoordinates(const Vector3& vertex, const Vector3& center, double heightRange) {
     double dx = vertex.x - center.x;
     double dy = vertex.y - center.y;
     double dz = vertex.z - center.z;
 
-    // Угол в радианах, нормализованный к [0, 1]
-    double angle = std::atan2(dy, dx) + angleOffset;
+    double angle = std::atan2(dy, dx);
     double u = 0.5 + 0.5 * angle / M_PI;
-
-    // Высота, нормализованная к диапазону heightRange
-    double v = (dz - center.z) / heightRange;
+    double v = heightRange > 1e-3 ? (dz) / heightRange : 0.0;
 
     glTexCoord2f(static_cast<float>(u), static_cast<float>(v));
 }
 
-// Загрузка BMP-текстуры (без поддержки сжатия, только 24-bit RGB)
 void initializeTextureFromBmp(const std::string& filename) {
     unsigned int tex;
-    unsigned char bytes[54]; // BMP заголовок — 54 байта
+    unsigned char bytes[54];
     FILE* file = std::fopen(filename.c_str(), "rb");
     if (!file) {
         std::cerr << "Ошибка: не удалось открыть текстуру " << filename << std::endl;
@@ -481,13 +434,11 @@ void initializeTextureFromBmp(const std::string& filename) {
         return;
     }
 
-    // Извлечение параметров из заголовка
     int offset;
     memcpy(&offset, bytes + 10, sizeof(int));
     int bmpw = *(int*)(bytes + 18);
     int bmph = *(int*)(bytes + 22);
 
-    // Чтение пикселей (BGR, bottom-up)
     unsigned char* pixels = new unsigned char[3 * bmpw * bmph];
     fseek(file, offset, SEEK_SET);
     err = std::fread(pixels, 3 * bmpw * bmph, 1, file);
@@ -499,14 +450,12 @@ void initializeTextureFromBmp(const std::string& filename) {
     }
     std::fclose(file);
 
-    // Создание текстуры OpenGL
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // Обратите внимание: формат GL_BGR_EXT (т.к. BMP хранит BGR)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, bmpw, bmph, 0, GL_BGR_EXT, GL_UNSIGNED_BYTE, pixels);
-    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE); // Смешивание с цветом материала
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
     gScene.textureIDs.push_back(tex);
     delete[] pixels;
 
@@ -514,100 +463,115 @@ void initializeTextureFromBmp(const std::string& filename) {
 }
 
 // ===================================================================================
-// ОСВЕЩЕНИЕ
+// ОСВЕЩЕНИЕ — УЛУЧШЕННОЕ
 // ===================================================================================
 
-// Настройка источника света GL_LIGHT0
 void initializeLighting() {
-    float ambientLight0[] = { 0.1f, 0.1f, 0.1f, 1.0f };   // Рассеянный свет
-    float diffuseLight0[] = { 0.8f, 0.8f, 0.9f, 1.0f };   // Диффузный свет
-    float specularLight0[] = { 0.4f, 0.4f, 0.4f, 1.0f };  // Зеркальный свет
-    float lightPosition0[] = { 10.0f, 10.0f, 10.0f, 1.0f }; // Позиция источника
+    // GL_LIGHT0 — мягкий белый, спереди
+    float pos0[] = { 8.0f, 8.0f, 8.0f, 1.0f };
+    float amb0[] = { 0.2f, 0.2f, 0.25f, 1.0f };
+    float dif0[] = { 0.6f, 0.6f, 0.7f, 1.0f };
+    float spec0[] = { 0.3f, 0.3f, 0.3f, 1.0f };
 
-    glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight0);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseLight0);
-    glLightfv(GL_LIGHT0, GL_SPECULAR, specularLight0);
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPosition0);
+    glLightfv(GL_LIGHT0, GL_POSITION, pos0);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, amb0);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, dif0);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, spec0);
 
-    // Настройка материала объекта
-    float specular[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-    float shininess[] = { 50.0f }; // Блеск (0–128)
+    // GL_LIGHT1 — тёплый оранжевый, снизу-справа
+    float pos1[] = { 6.0f, -4.0f, 6.0f, 1.0f };
+    float amb1[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    float dif1[] = { 0.4f, 0.25f, 0.15f, 1.0f };
+    float spec1[] = { 0.1f, 0.05f, 0.02f, 1.0f };
+
+    glLightfv(GL_LIGHT1, GL_POSITION, pos1);
+    glLightfv(GL_LIGHT1, GL_AMBIENT, amb1);
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, dif1);
+    glLightfv(GL_LIGHT1, GL_SPECULAR, spec1);
+
+    // GL_LIGHT2 — холодный синий, сверху-сзади
+    float pos2[] = { -5.0f, 6.0f, -8.0f, 1.0f };
+    float amb2[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    float dif2[] = { 0.2f, 0.25f, 0.4f, 1.0f };
+    float spec2[] = { 0.1f, 0.1f, 0.2f, 1.0f };
+
+    glLightfv(GL_LIGHT2, GL_POSITION, pos2);
+    glLightfv(GL_LIGHT2, GL_AMBIENT, amb2);
+    glLightfv(GL_LIGHT2, GL_DIFFUSE, dif2);
+    glLightfv(GL_LIGHT2, GL_SPECULAR, spec2);
+
+    // Материал
+    float specular[] = { 0.8f, 0.8f, 0.9f, 1.0f };
+    float shininess[] = { 32.0f };
     glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, specular);
     glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, shininess);
+
+    GLfloat no_ambient[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, no_ambient);
 }
 
 // ===================================================================================
 // ПРОЕКЦИЯ И КАМЕРА
 // ===================================================================================
 
-// Перестройка матрицы проекции при изменении окна или режима проекции
 void rebuildProjectionMatrix() {
     double ratio = (double)gScene.winWidth / (double)gScene.winHeight;
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     if (gScene.usePerspective)
-        gluPerspective(90.0, ratio, 0.1, 100.0); // Угол обзора 90°
+        gluPerspective(60.0, ratio, 0.1, 100.0); // уменьшен угол до 60° для естественности
     else
-        glOrtho(-ratio, ratio, -ratio, ratio, -100.0, 100.0); // Ортографическая проекция
+        glOrtho(-ratio * 8, ratio * 8, -8.0, 8.0, -100.0, 100.0);
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    gScene.camera.setupView(); // Настройка вида камеры
+    gScene.camera.setupView();
 }
 
 // ===================================================================================
 // УПРАВЛЕНИЕ СЦЕНОЙ
 // ===================================================================================
 
-// Обёртка для изменения параметров камеры и перерисовки
 void changeCamera(double x, double y, double z) {
     gScene.camera.rotate(x, y);
     if (z != 0) gScene.camera.zoom(z);
-
     rebuildProjectionMatrix();
-    glutPostRedisplay(); // Запрос на перерисовку
+    glutPostRedisplay();
 }
 
-// Включение/выключение источника света
 void switchLight(GLenum id, bool val) {
     if (val) glEnable(id); else glDisable(id);
     glutPostRedisplay();
 }
 
-// Обработка колеса мыши (кнопки 3 и 4 в GLUT)
 void Mouse(int button, int state, int x, int y) {
-    if (state == 0) { // Нажатие
-        if (button == 3) changeCamera(0, 0, -1.0);  // Вверх — приближение
-        else if (button == 4) changeCamera(0, 0, 1.0); // Вниз — отдаление
+    if (state == 0) {
+        if (button == 3) changeCamera(0, 0, -1.0);
+        else if (button == 4) changeCamera(0, 0, 1.0);
     }
 }
 
-// Переключение проекции
 void switchPerspective(bool val) {
     gScene.usePerspective = val;
     rebuildProjectionMatrix();
     glutPostRedisplay();
 }
 
-// Переключение сглаженного освещения
 void switchSmooth(bool val) {
     gScene.smoothShading = val;
     glutPostRedisplay();
 }
 
-// Переключение каркасного режима
 void switchCarcass(bool val) {
     gScene.showWireframe = val;
     glutPostRedisplay();
 }
 
-// Переключение отображения нормалей
 void switchShowNormals(bool val) {
     gScene.showNormals = val;
     glutPostRedisplay();
 }
 
-// Переключение текстур (циклически: -1 → 0 → 1 → -1 ...)
 void switchTexture(int val) {
     gScene.textureIndex = val;
     if (gScene.textureIndex >= (int)gScene.textureIDs.size())
@@ -619,22 +583,34 @@ void switchTexture(int val) {
 // РИСОВАНИЕ
 // ===================================================================================
 
-// Рисование сетки координат (серые линии на плоскости Y=0)
 void drawCoordinateNetwork() {
-    glColor3ub(127, 127, 127);
+    // Сетка
+    glColor3f(0.3f, 0.3f, 0.3f);
     glBegin(GL_LINES);
-    for (float i = -100; i <= 100; i++) {
-        glVertex3f(-100, 0, i);
-        glVertex3f(100, 0, i);
-        glVertex3f(i, 0, -100);
-        glVertex3f(i, 0, 100);
+    for (int i = -20; i <= 20; ++i) {
+        glVertex3f(-20.0f, 0.0f, i);
+        glVertex3f(20.0f, 0.0f, i);
+        glVertex3f(i, 0.0f, -20.0f);
+        glVertex3f(i, 0.0f, 20.0f);
     }
-    glVertex3f(0, -100, 0);
-    glVertex3f(0, 100, 0);
     glEnd();
+
+    // Оси
+    glLineWidth(2.0f);
+    glBegin(GL_LINES);
+    glColor3f(1.0f, 0.3f, 0.3f); // X — красная
+    glVertex3f(0, 0, 0);
+    glVertex3f(5, 0, 0);
+    glColor3f(0.3f, 1.0f, 0.3f); // Y — зелёная
+    glVertex3f(0, 0, 0);
+    glVertex3f(0, 5, 0);
+    glColor3f(0.3f, 0.3f, 1.0f); // Z — синяя
+    glVertex3f(0, 0, 0);
+    glVertex3f(0, 0, 5);
+    glEnd();
+    glLineWidth(1.0f);
 }
 
-// Основное рисование модели с освещением и текстурами
 void drawFigure() {
     const auto& faces = gScene.geometry.meshFaces;
     const auto& normals = gScene.geometry.vertexNormals;
@@ -652,14 +628,14 @@ void drawFigure() {
             const Vector3& p = face.verts[j];
             Vector3 n;
             if (smooth) {
-                n = getNormal(normals, p); // Используем усреднённую нормаль
+                n = getNormal(normals, p);
             }
             else {
-                n = calcNormal(face.verts[0], face.verts[1], face.verts[2]); // Нормаль грани
+                n = calcNormal(face.verts[0], face.verts[1], face.verts[2]);
             }
 
-            applyTextureCoordinates(p, gScene.geometry.center, 30.0);
-            glNormal3d(n.x, n.y, n.z); // Передаём нормаль в OpenGL
+            applyTextureCoordinates(p, gScene.geometry.center, gScene.heightRange);
+            glNormal3d(n.x, n.y, n.z);
             glVertex3d(p.x, p.y, p.z);
         }
     }
@@ -669,7 +645,6 @@ void drawFigure() {
     glDisable(GL_LIGHTING);
 }
 
-// Рисование каркаса (красные линии)
 void drawCarcass() {
     glColor3ub(255, 0, 0);
     const auto& faces = gScene.geometry.meshFaces;
@@ -685,7 +660,6 @@ void drawCarcass() {
     glEnd();
 }
 
-// Рисование нормалей (зелёные векторы длиной 0.1)
 void drawNormals() {
     glColor3ub(0, 255, 0);
     const auto& faces = gScene.geometry.meshFaces;
@@ -715,9 +689,8 @@ void drawNormals() {
 // GLUT CALLBACKS
 // ===================================================================================
 
-// Основная функция отрисовки
 void Display(void) {
-    glClearColor(0.0, 0.0, 0.0, 1.0);
+    glClearColor(0.05f, 0.05f, 0.1f, 1.0f); // тёмно-синий фон
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     drawCoordinateNetwork();
@@ -726,10 +699,9 @@ void Display(void) {
 
     if (gScene.showNormals) drawNormals();
 
-    glutSwapBuffers(); // Двойная буферизация
+    glutSwapBuffers();
 }
 
-// Изменение размера окна
 void Reshape(GLint newW, GLint newH) {
     gScene.winWidth = newW;
     gScene.winHeight = newH;
@@ -737,28 +709,32 @@ void Reshape(GLint newW, GLint newH) {
     rebuildProjectionMatrix();
 }
 
-// Обработка клавиатуры
 void Keyboard(unsigned char key, int x, int y) {
     switch (key) {
-    case '\033': exit(0); break; // ESC
-    case 'a': changeCamera(5, 0, 0); break; // Влево
-    case 'd': changeCamera(-5, 0, 0); break; // Вправо
-    case 'w': changeCamera(0, 5, 0); break; // Вверх
-    case 's': changeCamera(0, -5, 0); break; // Вниз
-    case '+': case '=': changeCamera(0, 0, -0.5); break; // Приближение
-    case '-': case '_': changeCamera(0, 0, 0.5); break; // Отдаление
-    case '1': switchLight(GL_LIGHT0, !glIsEnabled(GL_LIGHT0)); break; // Свет
-    case 'q': switchPerspective(!gScene.usePerspective); break; // Проекция
-    case 'e': switchSmooth(!gScene.smoothShading); break; // Сглаживание
-    case 'r': switchCarcass(!gScene.showWireframe); break; // Каркас
-    case 't': switchShowNormals(!gScene.showNormals); break; // Нормали
-    case 'y': switchTexture(gScene.textureIndex + 1); break; // Текстура
-    case 'i': gScene.printSceneInfo(); break; // Информация
-    case ' ': gScene.reset(); break; // Перезагрузка
+    case 27: // ESC (более переносимо, чем '\033')
+        exit(0);
+        break;
+    case 'a': changeCamera(5, 0, 0); break; // влево
+    case 'd': changeCamera(-5, 0, 0); break; // вправо
+    case 'w': changeCamera(0, 5, 0); break; // вверх
+    case 's': changeCamera(0, -5, 0); break; // вниз
+    case 'z': changeCamera(0, 0, -0.5); break; // приближение
+    case 'x': changeCamera(0, 0, 0.5); break;  // отдаление
+    case '1': switchLight(GL_LIGHT0, !glIsEnabled(GL_LIGHT0)); break;
+    case '2': switchLight(GL_LIGHT1, !glIsEnabled(GL_LIGHT1)); break;
+    case '3': switchLight(GL_LIGHT2, !glIsEnabled(GL_LIGHT2)); break;
+    case 'q': switchPerspective(!gScene.usePerspective); break;
+    case 'e': switchSmooth(!gScene.smoothShading); break;
+    case 'r': switchCarcass(!gScene.showWireframe); break;
+    case 't': switchShowNormals(!gScene.showNormals); break;
+    case 'y': switchTexture(gScene.textureIndex + 1); break;
+    case 'i': gScene.printSceneInfo(); break;
+    case ' ': gScene.reset(); break;
+    default:
+        break;
     }
 }
 
-// Обработка меню (правая кнопка мыши)
 void Menu(int option) {
     switch (option) {
     case 0: switchPerspective(true); break;
@@ -769,13 +745,17 @@ void Menu(int option) {
     case 5: switchCarcass(false); break;
     case 6: switchShowNormals(true); break;
     case 7: switchShowNormals(false); break;
-    case 8: switchTexture(-1); break; // Без текстуры
-    case 9: switchTexture(0); break;  // Текстура 1
-    case 10: switchTexture(1); break; // Текстура 2
+    case 8: switchTexture(-1); break;
+    case 9: switchTexture(0); break;
+    case 10: switchTexture(1); break;
     case 11: switchLight(GL_LIGHT0, true); break;
     case 12: switchLight(GL_LIGHT0, false); break;
-    case 13: gScene.reset(); break;
-    case 14: gScene.printSceneInfo(); break;
+    case 13: switchLight(GL_LIGHT1, true); break;
+    case 14: switchLight(GL_LIGHT1, false); break;
+    case 15: switchLight(GL_LIGHT2, true); break;
+    case 16: switchLight(GL_LIGHT2, false); break;
+    case 17: gScene.reset(); break;
+    case 18: gScene.printSceneInfo(); break;
     }
 }
 
@@ -789,27 +769,24 @@ bool initializeApplication(int argc, char* argv[]) {
     glutInitWindowSize(gScene.winWidth, gScene.winHeight);
     glutCreateWindow("Лабораторная работа №3 — Тиражирование сечений");
 
-    // Регистрация callback-функций
     glutDisplayFunc(Display);
     glutReshapeFunc(Reshape);
     glutKeyboardFunc(Keyboard);
     glutMouseFunc(Mouse);
 
-    // Настройка OpenGL
-    glEnable(GL_DEPTH_TEST); // Включить Z-буфер
-    glEnable(GL_COLOR_MATERIAL); // Цвет материала = цвет вершины
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_COLOR_MATERIAL);
     glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
 
-    // Включение освещения
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);
+    glEnable(GL_LIGHT1);
+    glEnable(GL_LIGHT2);
     initializeLighting();
 
-    // Отключение глобального ambient light (чтобы не "засвечивало")
     GLfloat no_ambient[] = { 0.0f, 0.0f, 0.0f, 1.0f };
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, no_ambient);
 
-    // Загрузка данных и построение модели
     try {
         gScene.reset();
     }
@@ -818,13 +795,11 @@ bool initializeApplication(int argc, char* argv[]) {
         return false;
     }
 
-    // Загрузка текстур
     for (const auto& texPath : gScene.config.texturePaths) {
         initializeTextureFromBmp(texPath);
     }
 
     rebuildProjectionMatrix();
-
     return true;
 }
 
@@ -833,10 +808,12 @@ bool initializeApplication(int argc, char* argv[]) {
 // ===================================================================================
 
 int main(int argc, char* argv[]) {
+    setlocale(LC_ALL, "Ru");
     std::cout << "Лабораторная работа №3 - Тиражирование сечений" << std::endl;
     std::cout << "Управление:" << std::endl;
     std::cout << "  WASD - вращение камеры" << std::endl;
     std::cout << "  +/- - приближение/отдаление" << std::endl;
+    std::cout << "  1/2/3 - вкл/выкл источники света" << std::endl;
     std::cout << "  Q - переключение проекции" << std::endl;
     std::cout << "  E - сглаживание нормалей" << std::endl;
     std::cout << "  R - каркасный режим" << std::endl;
@@ -851,7 +828,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Создание контекстного меню (правая кнопка мыши)
+    // Меню
     int menuProjection = glutCreateMenu(Menu);
     glutAddMenuEntry("Перспективная", 0);
     glutAddMenuEntry("Ортографическая", 1);
@@ -873,13 +850,21 @@ int main(int argc, char* argv[]) {
     glutAddMenuEntry("Текстура 1", 9);
     glutAddMenuEntry("Текстура 2", 10);
 
-    int menuLight1 = glutCreateMenu(Menu);
+    int menuLight0 = glutCreateMenu(Menu);
     glutAddMenuEntry("Включить", 11);
     glutAddMenuEntry("Выключить", 12);
 
+    int menuLight1 = glutCreateMenu(Menu);
+    glutAddMenuEntry("Включить", 13);
+    glutAddMenuEntry("Выключить", 14);
+
+    int menuLight2 = glutCreateMenu(Menu);
+    glutAddMenuEntry("Включить", 15);
+    glutAddMenuEntry("Выключить", 16);
+
     int menuSystem = glutCreateMenu(Menu);
-    glutAddMenuEntry("Перезагрузить сцену", 13);
-    glutAddMenuEntry("Информация о сцене", 14);
+    glutAddMenuEntry("Перезагрузить сцену", 17);
+    glutAddMenuEntry("Информация о сцене", 18);
 
     glutCreateMenu(Menu);
     glutAddSubMenu("Проекция", menuProjection);
@@ -887,12 +872,13 @@ int main(int argc, char* argv[]) {
     glutAddSubMenu("Каркас", menuCarcass);
     glutAddSubMenu("Нормали", menuNormal);
     glutAddSubMenu("Текстура", menuTexture);
-    glutAddSubMenu("Свет", menuLight1);
+    glutAddSubMenu("Свет: LIGHT0", menuLight0);
+    glutAddSubMenu("Свет: LIGHT1", menuLight1);
+    glutAddSubMenu("Свет: LIGHT2", menuLight2);
     glutAddSubMenu("Система", menuSystem);
     glutAttachMenu(GLUT_RIGHT_BUTTON);
 
     std::cout << "Приложение успешно запущено" << std::endl;
-
-    glutMainLoop(); // Главный цикл GLUT
+    glutMainLoop();
     return 0;
 }
