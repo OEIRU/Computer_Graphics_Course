@@ -1,4 +1,5 @@
 ﻿// compile
+<<<<<<< HEAD
 // Linux: g++ -O3 -std=c++17 -o main Source.cpp -lglut -lGL -lGLU -lpthread -lm
 // Windows: cl /EHsc /O2 /std:c++17 Source.cpp /link glut32.lib opengl32.lib glu32.lib
 
@@ -10,6 +11,11 @@
 #endif
 
 #include ".\GL\glut.h"
+=======
+// g++ -O3 -std=c++17 -o main Source.cpp -lglfw -lGL -lpthread 
+
+#define _CRT_SECURE_NO_WARNINGS
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
 #include <thread>
 #include <vector>
@@ -23,52 +29,97 @@
 #include <chrono>
 #include <algorithm>
 #include <cstdlib>
+<<<<<<< HEAD
 #include <mutex>
 #include <atomic>
 #include <condition_variable>
+=======
+
+#include <GL/gl.h>
+#include <GLFW/glfw3.h>
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
 // ============================================================================
 // ВСПОМОГАТЕЛЬНЫЕ СТРУКТУРЫ
 // ============================================================================
 
+<<<<<<< HEAD
+=======
+// 2D-вектор для UV-координат текстур
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 struct Vec2 {
     float x, y;
     Vec2(float x = 0, float y = 0) : x(x), y(y) {}
 };
 
+<<<<<<< HEAD
+=======
+// 3D-вектор: основа для точек, направлений, нормалей и лучей
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 struct Vec3 {
     float x, y, z;
     Vec3() : x(0), y(0), z(0) {}
     Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
 
+<<<<<<< HEAD
+=======
+    // Арифметические операции
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     Vec3 operator+(const Vec3& v) const { return Vec3(x + v.x, y + v.y, z + v.z); }
     Vec3 operator-(const Vec3& v) const { return Vec3(x - v.x, y - v.y, z - v.z); }
     Vec3 operator-() const { return Vec3(-x, -y, -z); }
     Vec3 operator*(float t) const { return Vec3(x * t, y * t, z * t); }
     Vec3 operator/(float t) const { return t != 0 ? Vec3(x / t, y / t, z / t) : Vec3(0, 0, 0); }
 
+<<<<<<< HEAD
     float dot(const Vec3& v) const { return x * v.x + y * v.y + z * v.z; }
 
+=======
+    // Скалярное произведение (для углов и проекций)
+    float dot(const Vec3& v) const { return x * v.x + y * v.y + z * v.z; }
+
+    // Векторное произведение (для вычисления нормалей)
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     Vec3 cross(const Vec3& v) const {
         return Vec3(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
     }
 
     float length2() const { return dot(*this); }
+<<<<<<< HEAD
     float length() const { return std::sqrt(length2()); }
 
+=======
+
+    // Длина вектора
+    float length() const { return std::sqrt(length2()); }
+
+    // Нормализация: приведение к единичной длине
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     Vec3 normalize() const {
         float len = length();
         return len > 1e-6f ? (*this) * (1.0f / len) : Vec3(0, 0, 1);
     }
 
+<<<<<<< HEAD
+=======
+    // Отражение вектора относительно нормали (для зеркал)
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     Vec3 reflect(const Vec3& n) const {
         return *this - n * (2.0f * this->dot(n));
     }
 
+<<<<<<< HEAD
     Vec3 refract(const Vec3& n, float eta) const {
         float cosI = -n.dot(*this);
         float sinT2 = eta * eta * (1.0f - cosI * cosI);
         if (sinT2 >= 1.0f) return Vec3(0, 0, 0);
+=======
+    // Преломление (закон Снеллиуса) при переходе между средами
+    Vec3 refract(const Vec3& n, float eta) const {
+        float cosI = -n.dot(*this); // косинус угла падения
+        float sinT2 = eta * eta * (1.0f - cosI * cosI); // sin² угла преломления
+        if (sinT2 >= 1.0f) return Vec3(0, 0, 0); // Полное внутреннее отражение
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         float cosT = std::sqrt(1.0f - sinT2);
         return (*this) * eta + n * (eta * cosI - cosT);
     }
@@ -78,15 +129,27 @@ struct Color {
     float r, g, b;
     Color() : r(0), g(0), b(0) {}
     Color(float r, float g, float b) {
+<<<<<<< HEAD
+=======
+        // Ограничение значений в [0, 1]
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         this->r = std::clamp(r, 0.0f, 1.0f);
         this->g = std::clamp(g, 0.0f, 1.0f);
         this->b = std::clamp(b, 0.0f, 1.0f);
     }
 
+<<<<<<< HEAD
+=======
+    // Операции над цветами
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     Color operator*(float t) const { return Color(r * t, g * t, b * t); }
     Color operator+(const Color& c) const { return Color(r + c.r, g + c.g, b + c.b); }
     Color operator*(const Color& c) const { return Color(r * c.r, g * c.g, b * c.b); }
 
+<<<<<<< HEAD
+=======
+    // Линейная интерполяция между двумя цветами
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     Color blend(const Color& c, float t) const {
         t = std::clamp(t, 0.0f, 1.0f);
         return Color(r * (1 - t) + c.r * t, g * (1 - t) + c.g * t, b * (1 - t) + c.b * t);
@@ -97,6 +160,7 @@ struct Color {
     unsigned char getB() const { return (unsigned char)(b * 255); }
 };
 
+<<<<<<< HEAD
 struct Texture {
     unsigned char* data = nullptr;
     int width = 0, height = 0;
@@ -111,11 +175,37 @@ struct Texture {
         u = u - std::floor(u);
         v = v - std::floor(v);
 
+=======
+// ============================================================================
+// ЗАГРУЗЧИК BMP-ТЕКСТУР
+// Поддерживает только 24-битные несжатые BMP
+// ============================================================================
+
+struct Texture {
+    unsigned char* data = nullptr; // Пиксельные данные (BGR, 24 бита на пиксель)
+    int width = 0, height = 0;     // Размеры изображения
+    int imageSize = 0;             // Размер данных в байтах
+    int dataPos = 0;               // Смещение начала пиксельных данных
+
+    // Деструктор автоматически освобождает память
+    ~Texture() { delete[] data; }
+
+    // Получение цвета по UV-координатам с повторением текстуры (tiling)
+    Color sample(float u, float v) const {
+        if (!data || width <= 0 || height <= 0) return Color(1, 0, 1); // Магента = ошибка
+
+        // Повторение текстуры: дробная часть UV
+        u = u - std::floor(u);
+        v = v - std::floor(v);
+
+        // Преобразование UV в индексы пикселей
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         int x = (int)(u * width) % width;
         int y = (int)(v * height) % height;
         if (x < 0) x += width;
         if (y < 0) y += height;
 
+<<<<<<< HEAD
         int idx = (y * width + x) * 3;
         return Color(
             data[idx + 2] / 255.0f,
@@ -133,10 +223,32 @@ struct Texture {
             return nullptr;
         }
 
+=======
+        // Индекс в массиве данных (BMP хранит BGR)
+        int idx = (y * width + x) * 3;
+        return Color(
+            data[idx + 2] / 255.0f, // R
+            data[idx + 1] / 255.0f, // G
+            data[idx] / 255.0f      // B
+        );
+    }
+
+    // Статический метод загрузки BMP-файла
+    static Texture loadBMP(const char* filename) {
+        Texture tex;
+        FILE* f = std::fopen(filename, "rb");
+        if (!f) {
+            std::printf("ERROR: Cannot open texture file %s\n", filename);
+            return tex;
+        }
+
+        // Чтение заголовка BMP (54 байта)
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         unsigned char header[54];
         if (std::fread(header, 1, 54, f) != 54) {
             std::printf("ERROR: Not a valid BMP file %s\n", filename);
             std::fclose(f);
+<<<<<<< HEAD
             delete tex;
             return nullptr;
         }
@@ -177,12 +289,54 @@ struct Texture {
         }
         else {
             std::printf("Texture loaded: %s (%dx%d)\n", filename, tex->width, tex->height);
+=======
+            return tex;
+        }
+
+        // Проверка сигнатуры "BM"
+        if (header[0] != 'B' || header[1] != 'M') {
+            std::printf("ERROR: Not a valid BMP file %s\n", filename);
+            std::fclose(f);
+            return tex;
+        }
+
+        // Извлечение параметров из заголовка
+        tex.dataPos = *(int*)&(header[0x0A]);  // Смещение пиксельных данных
+        tex.imageSize = *(int*)&(header[0x22]); // Размер изображения в байтах
+        tex.width = *(int*)&(header[0x12]);     // Ширина
+        tex.height = *(int*)&(header[0x16]);    // Высота
+
+        // Уточнение параметров, если они нулевые
+        if (tex.imageSize == 0) tex.imageSize = tex.width * tex.height * 3;
+        if (tex.dataPos == 0) tex.dataPos = 54;
+
+        // Проверка: только 24-битные изображения
+        if (*(short*)&(header[0x1C]) != 24) {
+            std::printf("ERROR: Only 24-bit BMP supported %s\n", filename);
+            std::fclose(f);
+            return tex;
+        }
+
+        // Выделение памяти и чтение пиксельных данных
+        tex.data = new unsigned char[tex.imageSize];
+        std::fseek(f, tex.dataPos, SEEK_SET);
+        size_t read = std::fread(tex.data, 1, tex.imageSize, f);
+        std::fclose(f);
+
+        if (read != (size_t)tex.imageSize) {
+            std::printf("ERROR: Could not read full texture data %s\n", filename);
+            delete[] tex.data;
+            tex.data = nullptr;
+        } else {
+            std::printf("Texture loaded: %s (%dx%d)\n", filename, tex.width, tex.height);
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         }
 
         return tex;
     }
 };
 
+<<<<<<< HEAD
 struct Material {
     Color color;
     float ka, kd, ks;
@@ -195,18 +349,51 @@ struct Material {
         reflect(0.0f), transparency(0.0f), shininess(32), texture(nullptr) {
     }
 
+=======
+// ============================================================================
+// МАТЕРИАЛ ОБЪЕКТА
+// Определяет, как объект взаимодействует со светом
+// ============================================================================
+
+struct Material {
+    Color color;           // Базовый цвет (если нет текстуры)
+    float ka, kd, ks;      // Коэффициенты: ambient, diffuse, specular
+    float reflect;         // Отражательная способность (0..1)
+    float transparency;    // Прозрачность (0..1)
+    int shininess;         // Блеск (для specular highlights)
+    Texture* texture;      // Указатель на текстуру (может быть nullptr)
+
+    // Конструктор по умолчанию
+    Material() : color(1, 1, 1), ka(0.1f), kd(0.7f), ks(0.3f),
+                 reflect(0.0f), transparency(0.0f), shininess(32), texture(nullptr) {}
+
+    // Параметризованный конструктор
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     Material(Color c, float a, float d, float s, float r, float t, int sh, Texture* tex = nullptr)
-        : color(c), ka(a), kd(d), ks(s), reflect(r), transparency(t), shininess(sh), texture(tex) {
-    }
+        : color(c), ka(a), kd(d), ks(s), reflect(r), transparency(t), shininess(sh), texture(tex) {}
 };
 
+<<<<<<< HEAD
 struct Ray {
     Vec3 origin, direction;
     Ray(Vec3 o, Vec3 d) : origin(o), direction(d.normalize()) {}
+=======
+// ============================================================================
+// ЛУЧ И ИНФОРМАЦИЯ О ПЕРЕСЕЧЕНИИ
+// ============================================================================
+
+// Луч: точка начала и направление
+struct Ray {
+    Vec3 origin, direction;
+    Ray(Vec3 o, Vec3 d) : origin(o), direction(d.normalize()) {}
+    // Точка на луче на расстоянии t
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     Vec3 at(float t) const { return origin + direction * t; }
 };
 
+// Результат пересечения луча с объектом
 struct HitInfo {
+<<<<<<< HEAD
     bool hit = false;
     float t = 1e30f;
     Vec3 point, normal;
@@ -218,10 +405,35 @@ struct HitInfo {
 struct Shape {
     bool enabled = true;
     virtual ~Shape() = default;
+=======
+    bool hit = false;      // Было ли пересечение?
+    float t = 1e30f;       // Расстояние до точки пересечения
+    Vec3 point, normal;    // Точка и нормаль в точке пересечения
+    Material mat;          // Материал объекта
+    float u = 0, v = 0;    // UV-координаты для текстурирования
+    HitInfo() {}
+};
+
+// ============================================================================
+// БАЗОВЫЙ КЛАСС ДЛЯ ГЕОМЕТРИЧЕСКИХ ФИГУР
+// ============================================================================
+
+struct Shape {
+    bool enabled = true;   // Включен ли объект в рендер?
+    virtual ~Shape() = default;
+    // Чисто виртуальный метод пересечения
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     virtual HitInfo intersect(const Ray& ray) const = 0;
     virtual bool isEnabled() const { return enabled; }
 };
 
+<<<<<<< HEAD
+=======
+// ============================================================================
+// СФЕРА
+// ============================================================================
+
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 struct Sphere : public Shape {
     Vec3 center; float radius; Material mat;
     Sphere(Vec3 c, float r, Material m, bool en = true) : center(c), radius(r), mat(m) { enabled = en; }
@@ -229,17 +441,34 @@ struct Sphere : public Shape {
     HitInfo intersect(const Ray& ray) const override {
         if (!isEnabled()) return HitInfo();
 
+<<<<<<< HEAD
+=======
+        // Вектор от центра сферы к началу луча
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         Vec3 oc = ray.origin - center;
+
+        // Коэффициенты квадратного уравнения |O + tD - C|² = R²
         float a = 1.0f;
         float b = 2.0f * oc.dot(ray.direction);
         float c = oc.dot(oc) - radius * radius;
         float disc = b * b - 4 * a * c;
+<<<<<<< HEAD
 
         if (disc < 0) return HitInfo();
 
         float sqrt_disc = std::sqrt(disc);
         float t = (-b - sqrt_disc) / (2 * a);
 
+=======
+
+        if (disc < 0) return HitInfo(); // Нет пересечения
+
+        // Вычисление корней
+        float sqrt_disc = std::sqrt(disc);
+        float t = (-b - sqrt_disc) / (2 * a);
+
+        // Если ближайшая точка за камерой — пробуем дальнюю
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         if (t < 0.001f) {
             t = (-b + sqrt_disc) / (2 * a);
             if (t < 0.001f) return HitInfo();
@@ -252,15 +481,30 @@ struct Sphere : public Shape {
         info.normal = (info.point - center).normalize();
         info.mat = mat;
 
+<<<<<<< HEAD
         float theta = std::acos(std::clamp(-info.normal.y, -1.0f, 1.0f));
         float phi = std::atan2(info.normal.z, info.normal.x);
         info.u = (phi + 3.1415926535f) / (2 * 3.1415926535f);
         info.v = theta / 3.1415926535f;
+=======
+        // Преобразование нормали в UV (сферическая проекция)
+        float theta = std::acos(std::clamp(-info.normal.y, -1.0f, 1.0f)); // Полярный угол
+        float phi = std::atan2(info.normal.z, info.normal.x);             // Азимут
+        info.u = (phi + 3.1415926535f) / (2 * 3.1415926535f);            // [0,1]
+        info.v = theta / 3.1415926535f;                                   // [0,1]
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
         return info;
     }
 };
 
+<<<<<<< HEAD
+=======
+// ============================================================================
+// ТРЕУГОЛЬНИК (АЛГОРИТМ МЁЛЛЕРА–ТРУМБОРА)
+// ============================================================================
+
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 struct Triangle : public Shape {
     Vec3 v0, v1, v2, normal;
     Vec2 uv0, uv1, uv2;
@@ -280,7 +524,11 @@ struct Triangle : public Shape {
         Vec3 h = ray.direction.cross(edge2);
         float a = edge1.dot(h);
 
+<<<<<<< HEAD
         if (std::abs(a) < 1e-6f) return HitInfo();
+=======
+        if (std::abs(a) < 1e-6f) return HitInfo(); // Луч параллелен плоскости
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
         float f = 1.0f / a;
         Vec3 s = ray.origin - v0;
@@ -300,10 +548,18 @@ struct Triangle : public Shape {
         info.point = ray.at(t);
         info.normal = normal;
 
+<<<<<<< HEAD
+=======
+        // Коррекция нормали: должна смотреть навстречу лучу
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         if (info.normal.dot(ray.direction) > 0) info.normal = -info.normal;
 
         info.mat = mat;
 
+<<<<<<< HEAD
+=======
+        // Барицентрическая интерполяция UV
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         float w = 1.0f - u - v;
         info.u = w * uv0.x + u * uv1.x + v * uv2.x;
         info.v = w * uv0.y + u * uv1.y + v * uv2.y;
@@ -312,6 +568,13 @@ struct Triangle : public Shape {
     }
 };
 
+<<<<<<< HEAD
+=======
+// ============================================================================
+// ТЕТРАЭДР (СОСТОИТ ИЗ 4 ТРЕУГОЛЬНИКОВ)
+// ============================================================================
+
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 struct Tetrahedron : public Shape {
     Vec3 v[4];
     Material mat;
@@ -325,6 +588,10 @@ struct Tetrahedron : public Shape {
         if (!isEnabled()) return HitInfo();
 
         HitInfo best;
+<<<<<<< HEAD
+=======
+        // Определение 4 граней тетраэдра
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         Triangle faces[4] = {
             Triangle(v[0], v[1], v[2], Vec2(0,0), Vec2(1,0), Vec2(0,1), mat, true),
             Triangle(v[0], v[2], v[3], Vec2(0,0), Vec2(0,1), Vec2(1,1), mat, true),
@@ -332,9 +599,17 @@ struct Tetrahedron : public Shape {
             Triangle(v[1], v[3], v[2], Vec2(1,0), Vec2(1,1), Vec2(0,1), mat, true)
         };
 
+<<<<<<< HEAD
         for (auto& tri : faces) {
             HitInfo h = tri.intersect(ray);
             if (h.hit && h.t < best.t) {
+=======
+        // Проверка пересечения с каждой гранью
+        for (auto& tri : faces) {
+            HitInfo h = tri.intersect(ray);
+            if (h.hit && h.t < best.t) {
+                // Коррекция нормали
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
                 if (h.normal.dot(ray.direction) > 0) {
                     h.normal = -h.normal;
                 }
@@ -345,6 +620,13 @@ struct Tetrahedron : public Shape {
     }
 };
 
+<<<<<<< HEAD
+=======
+// ============================================================================
+// БЕСКОНЕЧНАЯ ПЛОСКОСТЬ
+// ============================================================================
+
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 struct Plane : public Shape {
     Vec3 point, normal; Material mat;
     Plane(Vec3 p, Vec3 n, Material m, bool en = true) : point(p), normal(n.normalize()), mat(m) { enabled = en; }
@@ -353,7 +635,11 @@ struct Plane : public Shape {
         if (!isEnabled()) return HitInfo();
 
         float denom = normal.dot(ray.direction);
+<<<<<<< HEAD
         if (std::abs(denom) < 1e-6f) return HitInfo();
+=======
+        if (std::abs(denom) < 1e-6f) return HitInfo(); // Луч параллелен плоскости
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
         float t = (point - ray.origin).dot(normal) / denom;
         if (t < 0.001f) return HitInfo();
@@ -362,8 +648,15 @@ struct Plane : public Shape {
         info.hit = true;
         info.t = t;
         info.point = ray.at(t);
+<<<<<<< HEAD
         info.normal = denom > 0 ? -normal : normal;
         info.mat = mat;
+=======
+        // Нормаль направлена навстречу лучу
+        info.normal = denom > 0 ? -normal : normal;
+        info.mat = mat;
+        // Простая проекция UV по координатам X и Z
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         info.u = info.point.x * 2.0f;
         info.v = info.point.z * 2.0f;
 
@@ -374,6 +667,7 @@ struct Plane : public Shape {
 // ============================================================================
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
 // ============================================================================
+<<<<<<< HEAD
 
 int RENDER_WIDTH = 800;
 int RENDER_HEIGHT = 600;
@@ -387,6 +681,22 @@ bool useSSAA = false;
 std::vector<std::unique_ptr<Shape>> scene;
 const int MAX_DEPTH = 5;
 const float FOV = 60.0f;
+=======
+
+const int RENDER_WIDTH = 1920;   // Ширина рендеримого изображения
+const int RENDER_HEIGHT = 1080;  // Высота рендеримого изображения
+const int DISPLAY_WIDTH = 1920; // Размер окна OpenGL
+const int DISPLAY_HEIGHT = 1080;
+unsigned char* image = nullptr; // Буфер пикселей (RGB, 8 бит на канал)
+GLuint textureID = 0;           // Идентификатор текстуры OpenGL
+
+Vec3 camera(0, 1, 5);           // Позиция камеры
+Vec3 lightPos(2, 5, 2);         // Позиция точечного источника света
+bool useSSAA = false;           // Включено ли сглаживание (Super-Sampling Anti-Aliasing)
+std::vector<std::unique_ptr<Shape>> scene; // Список объектов в сцене
+const int MAX_DEPTH = 5;        // Максимальная глубина рекурсии (отражения/преломления)
+const float FOV = 60.0f;        // Угол обзора в градусах
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
 struct RenderParams {
     float invWidth, invHeight, aspect, tanHalfFov;
@@ -398,12 +708,15 @@ struct RenderParams {
     }
 } g_renderParams;
 
+<<<<<<< HEAD
 std::mutex renderMutex;
 std::atomic<bool> renderingInProgress(false);
 std::atomic<bool> renderComplete(false);
 std::atomic<int> currentRenderRow(0);
 std::atomic<bool> stopRendering(false);
 
+=======
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 // ============================================================================
 // ОТЛАДОЧНЫЕ ФУНКЦИИ
 // ============================================================================
@@ -433,15 +746,27 @@ void logMaterialInfo(const Material& mat, const std::string& name) {
 }
 
 void logRenderInfo() {
+<<<<<<< HEAD
     std::printf("[RENDER] SSAA: %s, Resolution: %dx%d\n", useSSAA ? "ON" : "OFF", RENDER_WIDTH, RENDER_HEIGHT);
+=======
+    std::printf("[RENDER] SSAA: %s\n", useSSAA ? "ON" : "OFF");
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 }
 
 // ============================================================================
 // МОДЕЛЬ ОСВЕЩЕНИЯ COOK-TORRANCE
+<<<<<<< HEAD
 // ============================================================================
 
 Color cookTorrance(const Vec3& N, const Vec3& V, const Vec3& L, const Color& baseColor, float ks, int shininess) {
     Vec3 H = (L + V).normalize();
+=======
+// Физически корректный specular
+// ============================================================================
+
+Color cookTorrance(const Vec3& N, const Vec3& V, const Vec3& L, const Color& baseColor, float ks, int shininess) {
+    Vec3 H = (L + V).normalize(); // Half-vector
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
     float NdotL = std::max(0.0f, N.dot(L));
     float NdotV = std::max(0.0f, N.dot(V));
@@ -450,6 +775,7 @@ Color cookTorrance(const Vec3& N, const Vec3& V, const Vec3& L, const Color& bas
 
     if (NdotL <= 0 || NdotV <= 0) return Color(0, 0, 0);
 
+<<<<<<< HEAD
     float F0 = 0.04f;
     float F = F0 + (1.0f - F0) * std::pow(1.0f - VdotH, 5.0f);
 
@@ -458,11 +784,28 @@ Color cookTorrance(const Vec3& N, const Vec3& V, const Vec3& L, const Color& bas
     float denomD = NdotH * NdotH * (alpha2 - 1.0f) + 1.0f;
     float D = alpha2 / (3.1415926535f * denomD * denomD);
 
+=======
+    // Френель (приближение Шлика)
+    float F0 = 0.04f; // Базовый коэффициент отражения для диэлектриков
+    float F = F0 + (1.0f - F0) * std::pow(1.0f - VdotH, 5.0f);
+
+    // Распределение микрограней (GGX)
+    float alpha = std::max(0.001f, 1.0f - (float)shininess / 100.0f);
+    float alpha2 = alpha * alpha;
+    float denomD = NdotH * NdotH * (alpha2 - 1.0f) + 1.0f;
+    float D = alpha2 / (3.1415926535f * denomD * denomD);
+
+    // Геометрическое затенение (Smith model)
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     float k = (alpha + 1.0f) * (alpha + 1.0f) / 8.0f;
     float G1V = NdotV / (NdotV * (1.0f - k) + k);
     float G1L = NdotL / (NdotL * (1.0f - k) + k);
     float G = G1V * G1L;
 
+<<<<<<< HEAD
+=======
+    // Итоговый specular
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     float specular = (F * D * G) / std::max(0.001f, 4.0f * NdotV * NdotL);
 
     return Color(1, 1, 1) * ks * specular * NdotL;
@@ -471,10 +814,18 @@ Color cookTorrance(const Vec3& N, const Vec3& V, const Vec3& L, const Color& bas
 // ============================================================================
 // РЕКУРСИВНАЯ ТРАССИРОВКА ЛУЧЕЙ
 // ============================================================================
+<<<<<<< HEAD
 
 Color traceRay(const Ray& ray, int depth = 0) {
     if (depth >= MAX_DEPTH) return Color(0.05f, 0.05f, 0.1f);
+=======
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
+Color traceRay(const Ray& ray, int depth = 0) {
+    // Ограничение глубины рекурсии
+    if (depth >= MAX_DEPTH) return Color(0.05f, 0.05f, 0.1f); // Тёмно-синий фон
+
+    // Поиск ближайшего пересечения
     HitInfo closest;
     for (const auto& s : scene) {
         if (!s->isEnabled()) continue;
@@ -482,8 +833,14 @@ Color traceRay(const Ray& ray, int depth = 0) {
         if (h.hit && h.t < closest.t && h.t > 0.001f) closest = h;
     }
 
+<<<<<<< HEAD
     if (!closest.hit) return Color(0.05f, 0.05f, 0.05f);
 
+=======
+    if (!closest.hit) return Color(0.05f, 0.05f, 0.05f); // Серый фон
+
+    // Основной цвет: либо базовый, либо из текстуры
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     Color baseColor = closest.mat.color;
     if (closest.mat.texture) {
         baseColor = closest.mat.texture->sample(closest.u, closest.v);
@@ -494,6 +851,7 @@ Color traceRay(const Ray& ray, int depth = 0) {
     if (lightDist2 < 1e-6f) {
         return baseColor * closest.mat.ka;
     }
+<<<<<<< HEAD
 
     float lightDist = std::sqrt(lightDist2);
     Vec3 L = L_vec / lightDist;
@@ -502,6 +860,17 @@ Color traceRay(const Ray& ray, int depth = 0) {
 
     bool inShadow = false;
     Ray shadowRay(closest.point + N * 0.01f, L);
+=======
+
+    float lightDist = std::sqrt(lightDist2);
+    Vec3 L = L_vec / lightDist; // Нормализованное направление к свету
+    Vec3 V = (camera - closest.point).normalize(); // Направление к камере
+    Vec3 N = closest.normal; // Нормаль в точке
+
+    // Проверка тени
+    bool inShadow = false;
+    Ray shadowRay(closest.point + N * 0.01f, L); // Небольшое смещение, чтобы избежать self-intersection
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     for (const auto& s : scene) {
         if (!s->isEnabled()) continue;
         HitInfo h = s->intersect(shadowRay);
@@ -511,16 +880,28 @@ Color traceRay(const Ray& ray, int depth = 0) {
         }
     }
 
+<<<<<<< HEAD
+=======
+    // Ambient
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     Color ambient = baseColor * closest.mat.ka;
     Color result = ambient;
 
     if (!inShadow) {
+        // Diffuse (Lambert)
         float diff = std::max(0.0f, N.dot(L));
         Color diffuse = baseColor * closest.mat.kd * diff;
+
+        // Specular (Cook-Torrance)
         Color specular = cookTorrance(N, V, L, baseColor, closest.mat.ks, closest.mat.shininess);
+
         result = result + diffuse + specular;
     }
 
+<<<<<<< HEAD
+=======
+    // Рекурсивное отражение
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     if (closest.mat.reflect > 0.01f && depth < MAX_DEPTH - 1) {
         Vec3 reflDir = ray.direction.reflect(N);
         Ray reflRay(closest.point + N * 0.01f, reflDir);
@@ -528,8 +909,15 @@ Color traceRay(const Ray& ray, int depth = 0) {
         result = result * (1.0f - closest.mat.reflect) + reflCol * closest.mat.reflect;
     }
 
+<<<<<<< HEAD
     if (closest.mat.transparency > 0.01f && depth < MAX_DEPTH - 1) {
         float eta = N.dot(ray.direction) < 0 ? (1.0f / 1.5f) : 1.5f;
+=======
+    // Рекурсивное преломление
+    if (closest.mat.transparency > 0.01f && depth < MAX_DEPTH - 1) {
+        // Вычисление коэффициента преломления
+        float eta = N.dot(ray.direction) < 0 ? (1.0f / 1.5f) : 1.5f; // 1.5 — IOR стекла
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
         Vec3 refrDir = ray.direction.refract(N, eta);
 
         if (refrDir.length2() > 0) {
@@ -543,8 +931,17 @@ Color traceRay(const Ray& ray, int depth = 0) {
 }
 
 // ============================================================================
+<<<<<<< HEAD
 // ПОТОК РЕНДЕРИНГА — БЕЗОПАСНЫЙ
 // ============================================================================
+=======
+// РЕНДЕРИНГ ИЗОБРАЖЕНИЯ
+// ============================================================================
+
+void renderImage() {
+    logDebugInfo("Start rendering");
+    auto startTime = std::chrono::high_resolution_clock::now();
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
 void renderThreadFunction(int renderW, int renderH) {
     renderingInProgress = true;
@@ -558,6 +955,7 @@ void renderThreadFunction(int renderW, int renderH) {
 
     const int NUM_THREADS = std::thread::hardware_concurrency();
     const int THREADS = (NUM_THREADS > 0) ? NUM_THREADS : 4;
+<<<<<<< HEAD
     const bool ssaa = useSSAA;
 
     float invWidth = g_renderParams.invWidth;
@@ -566,10 +964,19 @@ void renderThreadFunction(int renderW, int renderH) {
     float tanHalfFov = g_renderParams.tanHalfFov;
 
     unsigned char* tempBuffer = new unsigned char[localWidth * localHeight * 3]();
+=======
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
     std::vector<std::thread> threads;
     threads.reserve(THREADS);
 
+<<<<<<< HEAD
+=======
+    int rowsPerThread = RENDER_HEIGHT / THREADS;
+    const bool ssaa = useSSAA;
+
+    // Создание потоков для рендеринга полос изображения
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     for (int t = 0; t < THREADS; ++t) {
         threads.emplace_back([&, t]() {
             while (true) {
@@ -591,6 +998,10 @@ void renderThreadFunction(int renderW, int renderH) {
                             float jitterX = ssaa ? (sx + 0.5f) / 2.0f : 0.5f;
                             float jitterY = ssaa ? (sy + 0.5f) / 2.0f : 0.5f;
 
+<<<<<<< HEAD
+=======
+                            // Преобразование пикселя в направление луча
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
                             float px = (2.0f * (x + jitterX) * invWidth - 1.0f) * aspect * tanHalfFov;
                             float py = (1.0f - 2.0f * (row + jitterY) * invHeight) * tanHalfFov;
                             Vec3 rayDir(px, py, -1);
@@ -602,21 +1013,31 @@ void renderThreadFunction(int renderW, int renderH) {
 
                     finalColor = finalColor * (1.0f / samples);
 
+<<<<<<< HEAD
                     int idx = ((localHeight - 1 - row) * localWidth + x) * 3;
                     if (idx >= 0 && idx + 2 < localWidth * localHeight * 3) {
                         tempBuffer[idx] = finalColor.getR();
                         tempBuffer[idx + 1] = finalColor.getG();
                         tempBuffer[idx + 2] = finalColor.getB();
                     }
+=======
+                    // Запись в буфер (с переворотом по Y для OpenGL)
+                    int idx = ((RENDER_HEIGHT - 1 - y) * RENDER_WIDTH + x) * 3;
+                    image[idx] = finalColor.getR();
+                    image[idx + 1] = finalColor.getG();
+                    image[idx + 2] = finalColor.getB();
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
                 }
             }
-            });
+        });
     }
 
+    // Ожидание завершения всех потоков
     for (auto& t : threads) {
         if (t.joinable()) t.join();
     }
 
+<<<<<<< HEAD
     {
         std::lock_guard<std::mutex> lock(renderMutex);
         if (RENDER_WIDTH == localWidth && RENDER_HEIGHT == localHeight) {
@@ -631,6 +1052,20 @@ void renderThreadFunction(int renderW, int renderH) {
 
 // ============================================================================
 // ЗАГРУЗКА СЦЕНЫ
+=======
+    // Обновление текстуры OpenGL
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, RENDER_WIDTH, RENDER_HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, image);
+
+    auto endTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+    logDebugInfo("Render completed in " + std::to_string(duration.count()) + " ms");
+}
+
+// ============================================================================
+// ЗАГРУЗКА СЦЕНЫ ИЗ ФАЙЛА
+// Формат: тип x y z ... параметры материала текстура
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 // ============================================================================
 
 void loadSceneFromFile(const char* filename) {
@@ -645,7 +1080,11 @@ void loadSceneFromFile(const char* filename) {
     std::string line;
     int objectsLoaded = 0;
     while (std::getline(file, line)) {
+<<<<<<< HEAD
         if (line.empty() || line[0] == '#') continue;
+=======
+        if (line.empty() || line[0] == '#') continue; // Пропуск комментариев
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 
         std::istringstream iss(line);
         std::string type;
@@ -693,12 +1132,17 @@ void loadSceneFromFile(const char* filename) {
 }
 
 // ============================================================================
+<<<<<<< HEAD
 // ОБНОВЛЕНИЕ МАТЕРИАЛА
+=======
+// ОБНОВЛЕНИЕ ПАРАМЕТРОВ МАТЕРИАЛА
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
 // ============================================================================
 
 void updateMaterial(Material& mat, int action) {
     const float delta = 0.05f;
     switch (action) {
+<<<<<<< HEAD
     case 100: mat.ka = std::min(mat.ka + delta, 1.0f); break;
     case 101: mat.ka = std::max(mat.ka - delta, 0.0f); break;
     case 102: mat.kd = std::min(mat.kd + delta, 1.0f); break;
@@ -709,10 +1153,23 @@ void updateMaterial(Material& mat, int action) {
     case 107: mat.reflect = std::max(mat.reflect - delta, 0.0f); break;
     case 108: mat.transparency = std::min(mat.transparency + delta, 1.0f); break;
     case 109: mat.transparency = std::max(mat.transparency - delta, 0.0f); break;
+=======
+    case 100: mat.ka = std::min(mat.ka + delta, 1.0f); break; // Ambient +
+    case 101: mat.ka = std::max(mat.ka - delta, 0.0f); break; // Ambient -
+    case 102: mat.kd = std::min(mat.kd + delta, 1.0f); break; // Diffuse +
+    case 103: mat.kd = std::max(mat.kd - delta, 0.0f); break; // Diffuse -
+    case 104: mat.ks = std::min(mat.ks + delta, 1.0f); break; // Specular +
+    case 105: mat.ks = std::max(mat.ks - delta, 0.0f); break; // Specular -
+    case 106: mat.reflect = std::min(mat.reflect + delta, 1.0f); break; // Отражение +
+    case 107: mat.reflect = std::max(mat.reflect - delta, 0.0f); break; // Отражение -
+    case 108: mat.transparency = std::min(mat.transparency + delta, 1.0f); break; // Прозрачность +
+    case 109: mat.transparency = std::max(mat.transparency - delta, 0.0f); break; // Прозрачность -
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     }
 }
 
 // ============================================================================
+<<<<<<< HEAD
 // GLUT CALLBACKS
 // ============================================================================
 
@@ -905,6 +1362,129 @@ int main(int argc, char** argv) {
     glutMouseFunc(mouse);
     glutIdleFunc(idle);
 
+=======
+// ОБРАБОТЧИК КЛАВИАТУРЫ
+// ============================================================================
+
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (action != GLFW_PRESS) return;
+
+    if (key == GLFW_KEY_ESCAPE) {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+        logDebugInfo("ESC pressed — exiting");
+        return;
+    }
+
+    bool changed = false;
+
+    auto updateAndRender = [&]() {
+        if (changed) renderImage();
+    };
+
+    // Управление камерой
+    if (key == GLFW_KEY_W) { camera.z -= 0.3f; logDebugInfo("W: camera forward"); changed = true; }
+    else if (key == GLFW_KEY_S) { camera.z += 0.3f; logDebugInfo("S: camera back"); changed = true; }
+    else if (key == GLFW_KEY_A) { camera.x -= 0.3f; logDebugInfo("A: camera left"); changed = true; }
+    else if (key == GLFW_KEY_D) { camera.x += 0.3f; logDebugInfo("D: camera right"); changed = true; }
+    else if (key == GLFW_KEY_Q) { camera.y += 0.3f; logDebugInfo("Q: camera up"); changed = true; }
+    else if (key == GLFW_KEY_E) { camera.y -= 0.3f; logDebugInfo("E: camera down"); changed = true; }
+    else if (key == GLFW_KEY_C) { camera = Vec3(0, 1, 5); logDebugInfo("C: reset camera"); changed = true; }
+
+    // Управление светом
+    else if (key == GLFW_KEY_I) { lightPos.y += 0.3f; logDebugInfo("I: light up"); changed = true; }
+    else if (key == GLFW_KEY_K) { lightPos.y -= 0.3f; logDebugInfo("K: light down"); changed = true; }
+    else if (key == GLFW_KEY_J) { lightPos.x -= 0.3f; logDebugInfo("J: light left"); changed = true; }
+    else if (key == GLFW_KEY_L) { lightPos.x += 0.3f; logDebugInfo("L: light right"); changed = true; }
+    else if (key == GLFW_KEY_O) { lightPos = Vec3(2, 5, 2); logDebugInfo("O: reset light"); changed = true; }
+
+    // Включение/выключение объектов
+    else if (key == GLFW_KEY_1 && scene.size() >= 1) {
+        scene[0]->enabled = !scene[0]->enabled;
+        logDebugInfo("1: toggle sphere");
+        changed = true;
+    }
+    else if (key == GLFW_KEY_2 && scene.size() >= 2) {
+        scene[1]->enabled = !scene[1]->enabled;
+        logDebugInfo("2: toggle tetrahedron");
+        changed = true;
+    }
+    else if (key == GLFW_KEY_3 && scene.size() >= 3) {
+        scene[2]->enabled = !scene[2]->enabled;
+        logDebugInfo("3: toggle plane");
+        changed = true;
+    }
+
+    // Управление рендером
+    else if (key == GLFW_KEY_F) {
+        useSSAA = !useSSAA;
+        logDebugInfo("F: toggle SSAA");
+        changed = true;
+    }
+    else if (key == GLFW_KEY_R) {
+        logDebugInfo("R: re-render");
+        changed = true;
+    }
+    else if (key == GLFW_KEY_F5) {
+        loadSceneFromFile("scene.txt");
+        changed = true;
+    }
+
+    // Пример управления материалом сферы
+    else if (key == GLFW_KEY_U && scene.size() >= 1) {
+        if (Sphere* s = dynamic_cast<Sphere*>(scene[0].get())) {
+            updateMaterial(s->mat, 100); // ka+
+            logDebugInfo("U: sphere ka+");
+            changed = true;
+        }
+    }
+
+    updateAndRender();
+
+    // Вывод информации о материале сферы при изменении
+    if (changed && scene.size() >= 1) {
+        if (Sphere* s = dynamic_cast<Sphere*>(scene[0].get())) {
+            logMaterialInfo(s->mat, "SPHERE");
+        }
+    }
+}
+
+// ============================================================================
+// ТОЧКА ВХОДА
+// ============================================================================
+
+int main() {
+    std::printf("=== Raytracer started ===\n");
+    std::printf("Controls:\n");
+    std::printf("  Camera: W/S/A/D/Q/E — move, C — reset\n");
+    std::printf("  Light: I/K/J/L — move, O — reset\n");
+    std::printf("  Objects: 1/2/3 — toggle\n");
+    std::printf("  Render: F — SSAA, R — re-render, F5 — reload scene\n");
+    std::printf("  Exit: ESC\n\n");
+
+    // Инициализация GLFW
+    if (!glfwInit()) {
+        std::fprintf(stderr, "Failed to initialize GLFW\n");
+        return -1;
+    }
+
+    // Настройка контекста OpenGL (Legacy, совместим с glBegin/glEnd)
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+
+    // Создание окна
+    GLFWwindow* window = glfwCreateWindow(DISPLAY_WIDTH, DISPLAY_HEIGHT, "LR3 - Cross-platform Raytracer", nullptr, nullptr);
+    if (!window) {
+        std::fprintf(stderr, "Failed to create GLFW window\n");
+        glfwTerminate();
+        return -1;
+    }
+
+    glfwMakeContextCurrent(window);
+    glfwSetKeyCallback(window, keyCallback);
+    glfwSetMouseButtonCallback(window, [](GLFWwindow*, int, int, int){}); // Игнор кликов
+
+    // Загрузка сцены
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     loadSceneFromFile("scene.txt");
 
     renderBuffer = new unsigned char[RENDER_WIDTH * RENDER_HEIGHT * 3]();
@@ -921,6 +1501,7 @@ int main(int argc, char** argv) {
     logSceneInfo();
     logRenderInfo();
 
+<<<<<<< HEAD
     std::thread(renderThreadFunction, RENDER_WIDTH, RENDER_HEIGHT).detach();
 
     glutMainLoop();
@@ -929,5 +1510,40 @@ int main(int argc, char** argv) {
     delete[] displayBuffer;
     glDeleteTextures(1, &textureID);
     std::printf("=== Raytracer finished ===\n");
+=======
+    // Первый рендер
+    renderImage();
+
+    // Главный цикл
+    while (!glfwWindowShouldClose(window)) {
+        glClear(GL_COLOR_BUFFER_BIT);
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glOrtho(0, RENDER_WIDTH, 0, RENDER_HEIGHT, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+
+        // Отображение рендеримого изображения как текстуры
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glBegin(GL_QUADS);
+        glTexCoord2f(0, 0); glVertex2i(0, 0);
+        glTexCoord2f(1, 0); glVertex2i(RENDER_WIDTH, 0);
+        glTexCoord2f(1, 1); glVertex2i(RENDER_WIDTH, RENDER_HEIGHT);
+        glTexCoord2f(0, 1); glVertex2i(0, RENDER_HEIGHT);
+        glEnd();
+        glDisable(GL_TEXTURE_2D);
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    std::printf("=== Raytracer finished ===\n");
+
+    // Освобождение ресурсов
+    delete[] image;
+    glDeleteTextures(1, &textureID);
+    glfwTerminate();
+>>>>>>> 17812082491c034682996f28a9fa28b691d9244b
     return 0;
 }
