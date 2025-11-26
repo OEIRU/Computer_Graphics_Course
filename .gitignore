@@ -1,3 +1,7 @@
 .vs/
 .vscode/
-lab3/.vs 
+lab3/.vs/
+lab3/KG_RTX/
+lab3/packages/
+lab3/Release/
+lab3/Debug/

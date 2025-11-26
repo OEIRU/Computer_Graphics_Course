@@ -26,7 +26,6 @@
 #include <mutex>
 #include <atomic>
 #include <condition_variable>
-
 // ============================================================================
 // ВСПОМОГАТЕЛЬНЫЕ СТРУКТУРЫ
 // ============================================================================
@@ -124,59 +123,53 @@ struct Texture {
         );
     }
 
-    static Texture* loadBMP(const char* filename) {
-        Texture* tex = new Texture();
+    static Texture loadBMP(const char* filename) {
+        Texture tex;
         FILE* f = std::fopen(filename, "rb");
         if (!f) {
             std::printf("ERROR: Cannot open texture file %s\n", filename);
-            delete tex;
-            return nullptr;
+            return tex;
         }
 
         unsigned char header[54];
         if (std::fread(header, 1, 54, f) != 54) {
             std::printf("ERROR: Not a valid BMP file %s\n", filename);
             std::fclose(f);
-            delete tex;
-            return nullptr;
+            return tex;
         }
 
         if (header[0] != 'B' || header[1] != 'M') {
             std::printf("ERROR: Not a valid BMP file %s\n", filename);
             std::fclose(f);
-            delete tex;
-            return nullptr;
+            return tex;
         }
 
-        tex->dataPos = *(int*)&(header[0x0A]);
-        tex->imageSize = *(int*)&(header[0x22]);
-        tex->width = *(int*)&(header[0x12]);
-        tex->height = *(int*)&(header[0x16]);
+        tex.dataPos = *(int*)&(header[0x0A]);
+        tex.imageSize = *(int*)&(header[0x22]);
+        tex.width = *(int*)&(header[0x12]);
+        tex.height = *(int*)&(header[0x16]);
 
-        if (tex->imageSize == 0) tex->imageSize = tex->width * tex->height * 3;
-        if (tex->dataPos == 0) tex->dataPos = 54;
+        if (tex.imageSize == 0) tex.imageSize = tex.width * tex.height * 3;
+        if (tex.dataPos == 0) tex.dataPos = 54;
 
         if (*(short*)&(header[0x1C]) != 24) {
             std::printf("ERROR: Only 24-bit BMP supported %s\n", filename);
             std::fclose(f);
-            delete tex;
-            return nullptr;
+            return tex;
         }
 
-        tex->data = new unsigned char[tex->imageSize];
-        std::fseek(f, tex->dataPos, SEEK_SET);
-        size_t read = std::fread(tex->data, 1, tex->imageSize, f);
+        tex.data = new unsigned char[tex.imageSize];
+        std::fseek(f, tex.dataPos, SEEK_SET);
+        size_t read = std::fread(tex.data, 1, tex.imageSize, f);
         std::fclose(f);
 
-        if (read != (size_t)tex->imageSize) {
+        if (read != (size_t)tex.imageSize) {
             std::printf("ERROR: Could not read full texture data %s\n", filename);
-            delete[] tex->data;
-            tex->data = nullptr;
-            delete tex;
-            return nullptr;
+            delete[] tex.data;
+            tex.data = nullptr;
         }
         else {
-            std::printf("Texture loaded: %s (%dx%d)\n", filename, tex->width, tex->height);
+            std::printf("Texture loaded: %s (%dx%d)\n", filename, tex.width, tex.height);
         }
 
         return tex;
@@ -375,11 +368,13 @@ struct Plane : public Shape {
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
 // ============================================================================
 
-int RENDER_WIDTH = 800;
-int RENDER_HEIGHT = 600;
+int RENDER_WIDTH = 1920;
+int RENDER_HEIGHT = 1080;
 unsigned char* renderBuffer = nullptr;
 unsigned char* displayBuffer = nullptr;
 GLuint textureID = 0;
+int windowWidth = RENDER_WIDTH;
+int windowHeight = RENDER_HEIGHT;
 
 Vec3 camera(0, 1, 5);
 Vec3 lightPos(2, 5, 2);
@@ -403,6 +398,12 @@ std::atomic<bool> renderingInProgress(false);
 std::atomic<bool> renderComplete(false);
 std::atomic<int> currentRenderRow(0);
 std::atomic<bool> stopRendering(false);
+std::thread renderWorker;
+
+// Start and stop managed render worker
+void stopRender();
+void startRender(int w, int h);
+
 
 // ============================================================================
 // ОТЛАДОЧНЫЕ ФУНКЦИИ
@@ -620,13 +621,31 @@ void renderThreadFunction(int renderW, int renderH) {
     {
         std::lock_guard<std::mutex> lock(renderMutex);
         if (RENDER_WIDTH == localWidth && RENDER_HEIGHT == localHeight) {
-            std::memcpy(displayBuffer, tempBuffer, localWidth * localHeight * 3);
-            renderComplete = true;
+            if (displayBuffer) {
+                std::memcpy(displayBuffer, tempBuffer, localWidth * localHeight * 3);
+                renderComplete = true;
+            }
         }
     }
 
     delete[] tempBuffer;
     renderingInProgress = false;
+}
+
+// Controlled start/stop for the render worker thread
+void stopRender() {
+    if (renderWorker.joinable()) {
+        stopRendering = true; // request stop
+        // join will wait until renderThreadFunction exits
+        renderWorker.join();
+    }
+}
+
+void startRender(int w, int h) {
+    // ensure any previous worker is stopped
+    if (renderWorker.joinable()) stopRender();
+    stopRendering = false;
+    renderWorker = std::thread(renderThreadFunction, w, h);
 }
 
 // ============================================================================
@@ -656,7 +675,7 @@ void loadSceneFromFile(const char* filename) {
             std::string texName;
             iss >> cx >> cy >> cz >> r >> R >> G >> B >> ka >> kd >> ks >> refl >> trans >> shininess >> texName;
             Color col(R, G, B);
-            Texture* tex = (texName != "none") ? Texture::loadBMP(texName.c_str()) : nullptr;
+            Texture* tex = (texName != "none") ? new Texture(Texture::loadBMP(texName.c_str())) : nullptr;
             scene.push_back(std::make_unique<Sphere>(Vec3(cx, cy, cz), r, Material(col, ka, kd, ks, refl, trans, (int)shininess, tex)));
             objectsLoaded++;
             logDebugInfo("Sphere loaded at (" + std::to_string(cx) + ", " + std::to_string(cy) + ", " + std::to_string(cz) + ")");
@@ -667,7 +686,7 @@ void loadSceneFromFile(const char* filename) {
             for (int i = 0; i < 12; ++i) iss >> coords[i];
             iss >> R >> G >> B >> ka >> kd >> ks >> refl >> trans >> shininess >> texName;
             Color col(R, G, B);
-            Texture* tex = (texName != "none") ? Texture::loadBMP(texName.c_str()) : nullptr;
+            Texture* tex = (texName != "none") ? new Texture(Texture::loadBMP(texName.c_str())) : nullptr;
             scene.push_back(std::make_unique<Tetrahedron>(
                 Vec3(coords[0], coords[1], coords[2]),
                 Vec3(coords[3], coords[4], coords[5]),
@@ -683,7 +702,7 @@ void loadSceneFromFile(const char* filename) {
             std::string texName;
             iss >> px >> py >> pz >> nx >> ny >> nz >> R >> G >> B >> ka >> kd >> ks >> refl >> trans >> shininess >> texName;
             Color col(R, G, B);
-            Texture* tex = (texName != "none") ? Texture::loadBMP(texName.c_str()) : nullptr;
+            Texture* tex = (texName != "none") ? new Texture(Texture::loadBMP(texName.c_str())) : nullptr;
             scene.push_back(std::make_unique<Plane>(Vec3(px, py, pz), Vec3(nx, ny, nz), Material(col, ka, kd, ks, refl, trans, (int)shininess, tex)));
             objectsLoaded++;
             logDebugInfo("Plane loaded at (" + std::to_string(px) + ", " + std::to_string(py) + ", " + std::to_string(pz) + ")");
@@ -720,24 +739,31 @@ void updateMaterial(Material& mat, int action) {
 void menuCallback(int option);
 
 void reshape(int width, int height) {
-    const int MAX_WIDTH = 1280;
-    const int MAX_HEIGHT = 720;
+    const int MAX_WIDTH = 1920;
+    const int MAX_HEIGHT = 1080;
 
     int newWidth = std::min(width, MAX_WIDTH);
     int newHeight = std::min(height, MAX_HEIGHT);
 
-    if (renderingInProgress) {
-        stopRendering = true;
-        while (renderingInProgress) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-    }
+    // Guard against zero-size windows
+    if (newWidth <= 0) newWidth = 1;
+    if (newHeight <= 0) newHeight = 1;
 
+    // Ensure any running render is stopped in a controlled way
+    stopRender();
+
+    // Final render buffer size follows the (capped) window size
     RENDER_WIDTH = newWidth;
     RENDER_HEIGHT = newHeight;
 
+    // store actual window size for viewport/quad drawing
+    windowWidth = width;
+    windowHeight = height;
+
     {
+        // Protect buffer reallocation and texture upload against concurrent access from display()
         std::lock_guard<std::mutex> lock(renderMutex);
+
         delete[] renderBuffer;
         delete[] displayBuffer;
         renderBuffer = new unsigned char[RENDER_WIDTH * RENDER_HEIGHT * 3]();
@@ -745,26 +771,29 @@ void reshape(int width, int height) {
 
         glBindTexture(GL_TEXTURE_2D, textureID);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, RENDER_WIDTH, RENDER_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-    }
 
-    glViewport(0, 0, width, height);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluOrtho2D(0, width, 0, height);
-    glMatrixMode(GL_MODELVIEW);
+        // Viewport should cover the actual window size (so textured quad stretches correctly)
+        glViewport(0, 0, width, height);
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        gluOrtho2D(0, width, 0, height);
+        glMatrixMode(GL_MODELVIEW);
+    }
 
     logRenderInfo();
 
     stopRendering = false;
-    std::thread(renderThreadFunction, RENDER_WIDTH, RENDER_HEIGHT).detach();
+    startRender(RENDER_WIDTH, RENDER_HEIGHT);
 }
 
 void display() {
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (renderComplete) {
-        {
-            std::lock_guard<std::mutex> lock(renderMutex);
+    // Only update texture when a new rendered image is ready.
+    // Use the same mutex that the render thread uses to guarantee memory visibility
+    if (renderComplete.load()) {
+        std::lock_guard<std::mutex> lock(renderMutex);
+        if (renderComplete.load() && displayBuffer) {
             glBindTexture(GL_TEXTURE_2D, textureID);
             glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, RENDER_WIDTH, RENDER_HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, displayBuffer);
             renderComplete = false;
@@ -775,9 +804,9 @@ void display() {
     glBindTexture(GL_TEXTURE_2D, textureID);
     glBegin(GL_QUADS);
     glTexCoord2f(0, 0); glVertex2i(0, 0);
-    glTexCoord2f(1, 0); glVertex2i(RENDER_WIDTH, 0);
-    glTexCoord2f(1, 1); glVertex2i(RENDER_WIDTH, RENDER_HEIGHT);
-    glTexCoord2f(0, 1); glVertex2i(0, RENDER_HEIGHT);
+    glTexCoord2f(1, 0); glVertex2i(windowWidth, 0);
+    glTexCoord2f(1, 1); glVertex2i(windowWidth, windowHeight);
+    glTexCoord2f(0, 1); glVertex2i(0, windowHeight);
     glEnd();
     glDisable(GL_TEXTURE_2D);
 
@@ -811,26 +840,18 @@ void keyboard(unsigned char key, int x, int y) {
     else if (key == '3' && scene.size() >= 3) { scene[2]->enabled = !scene[2]->enabled; logDebugInfo("3: toggle plane"); changed = true; }
 
     if (changed) {
-        if (renderingInProgress) {
-            stopRendering = true;
-            while (renderingInProgress) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-        }
-        std::thread(renderThreadFunction, RENDER_WIDTH, RENDER_HEIGHT).detach();
+        stopRender();
+        stopRendering = false;
+        startRender(RENDER_WIDTH, RENDER_HEIGHT);
     }
 }
 
 void specialKeys(int key, int x, int y) {
     if (key == GLUT_KEY_F5) {
-        if (renderingInProgress) {
-            stopRendering = true;
-            while (renderingInProgress) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-        }
+        stopRender();
         loadSceneFromFile("scene.txt");
-        std::thread(renderThreadFunction, RENDER_WIDTH, RENDER_HEIGHT).detach();
+        stopRendering = false;
+        startRender(RENDER_WIDTH, RENDER_HEIGHT);
     }
 }
 
@@ -863,13 +884,9 @@ void menuCallback(int option) {
     }
 
     if (changed) {
-        if (renderingInProgress) {
-            stopRendering = true;
-            while (renderingInProgress) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-        }
-        std::thread(renderThreadFunction, RENDER_WIDTH, RENDER_HEIGHT).detach();
+        stopRender();
+        stopRendering = false;
+        startRender(RENDER_WIDTH, RENDER_HEIGHT);
     }
 }
 
@@ -896,7 +913,7 @@ int main(int argc, char** argv) {
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
     glutInitWindowSize(RENDER_WIDTH, RENDER_HEIGHT);
     glutInitWindowPosition(100, 100);
-    glutCreateWindow("LR3 - Cross-platform Raytracer with GLUT & Multithreading");
+    glutCreateWindow("LR3 - Cross-platform Raytracer");
 
     glutReshapeFunc(reshape);
     glutDisplayFunc(display);
@@ -921,7 +938,7 @@ int main(int argc, char** argv) {
     logSceneInfo();
     logRenderInfo();
 
-    std::thread(renderThreadFunction, RENDER_WIDTH, RENDER_HEIGHT).detach();
+    startRender(RENDER_WIDTH, RENDER_HEIGHT);
 
     glutMainLoop();
 
